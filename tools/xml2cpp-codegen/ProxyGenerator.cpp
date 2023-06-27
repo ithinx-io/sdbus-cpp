@@ -111,9 +111,17 @@ std::string ProxyGenerator::processInterface(Node& interface) const
     std::string methodDefinitions, asyncDeclarations;
     std::tie(methodDefinitions, asyncDeclarations) = processMethods(methods);
 
+    std::string propertyDefinitions, propertyAsyncDeclarations;
+    std::tie(propertyDefinitions, propertyAsyncDeclarations) = processProperties(properties);
+
     if (!asyncDeclarations.empty())
     {
         body << asyncDeclarations << endl;
+    }
+
+    if (!propertyAsyncDeclarations.empty())
+    {
+        body << propertyAsyncDeclarations << endl;
     }
 
     if (!methodDefinitions.empty())
@@ -121,7 +129,7 @@ std::string ProxyGenerator::processInterface(Node& interface) const
         body << "public:" << endl << methodDefinitions;
     }
 
-    std::string propertyDefinitions = processProperties(properties);
+    
     if (!propertyDefinitions.empty())
     {
         body << "public:" << endl << propertyDefinitions;
@@ -274,15 +282,16 @@ std::tuple<std::string, std::string> ProxyGenerator::processSignals(const Nodes&
     return std::make_tuple(registrationSS.str(), declarationSS.str());
 }
 
-std::string ProxyGenerator::processProperties(const Nodes& properties) const
+std::tuple<std::string, std::string> ProxyGenerator::processProperties(const Nodes& properties) const
 {
-    std::ostringstream propertySS;
+    std::ostringstream propertySS, asyncDeclarationSS;
     for (const auto& property : properties)
     {
         auto propertyName = property->get("name");
         auto propertyNameSafe = mangle_name(propertyName);
         auto propertyAccess = property->get("access");
         auto propertySignature = property->get("type");
+        auto propertyAsync = property->get("async");
 
         auto propertyType = signature_to_type(propertySignature);
         auto propertyArg = std::string("value");
@@ -290,11 +299,22 @@ std::string ProxyGenerator::processProperties(const Nodes& properties) const
 
         if (propertyAccess == "read" || propertyAccess == "readwrite")
         {
-            propertySS << tab << propertyType << " " << propertyNameSafe << "()" << endl
-                    << tab << "{" << endl;
-            propertySS << tab << tab << "return proxy_->getProperty(\"" << propertyName << "\")"
-                            ".onInterface(INTERFACE_NAME)";
-            propertySS << ";" << endl << tab << "}" << endl << endl;
+            if (propertyAsync == "true") {
+                propertySS << tab << "sdbus::PendingAsyncCall" << " " << propertyNameSafe << "()" << endl
+                           << tab << "{" << endl;
+                propertySS << tab << tab << "return proxy_->callMethodAsync(\"Get\")" << endl 
+                << tab << tab << tab << tab << tab << ".onInterface(\"org.freedesktop.DBus.Properties\")" << endl 
+                << tab << tab << tab << tab << tab << ".withArguments(INTERFACE_NAME, \"" << propertyName << "\")" << endl 
+                << tab << tab << tab << tab << tab << ".uponReplyInvoke([this](const sdbus::Error* error, const " << propertyType << "& res) { this->on" << propertyNameSafe << "Reply(res, error);}); " << endl << tab << "}" << endl << endl;
+
+                asyncDeclarationSS << tab << "virtual void on" << propertyNameSafe << "Reply(const " << propertyType << "& res, const sdbus::Error* error) = 0;" << endl;
+            } else {
+                propertySS << tab << propertyType << " " << propertyNameSafe << "()" << endl
+                        << tab << "{" << endl;
+                propertySS << tab << tab << "return proxy_->getProperty(\"" << propertyName << "\")"
+                                ".onInterface(INTERFACE_NAME)";
+                propertySS << ";" << endl << tab << "}" << endl << endl;
+            }
         }
 
         if (propertyAccess == "readwrite" || propertyAccess == "write")
@@ -308,5 +328,5 @@ std::string ProxyGenerator::processProperties(const Nodes& properties) const
         }
     }
 
-    return propertySS.str();
+    return std::make_tuple(propertySS.str(), asyncDeclarationSS.str());
 }

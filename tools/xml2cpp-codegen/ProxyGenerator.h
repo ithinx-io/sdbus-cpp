@@ -71,9 +71,9 @@ private:
     /**
      * Generate calls for properties
      * @param properties
-     * @return source code
+     * @return tuple: definition of property getters, declaration of virtual async reply handlers
      */
-    std::string processProperties(const sdbuscpp::xml::Nodes& properties) const;
+    std::tuple<std::string, std::string> processProperties(const sdbuscpp::xml::Nodes& properties) const;
 
 };
 
