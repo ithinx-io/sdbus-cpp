@@ -305,7 +305,7 @@ std::tuple<std::string, std::string> ProxyGenerator::processProperties(const Nod
                 propertySS << tab << tab << "return proxy_->callMethodAsync(\"Get\")" << endl 
                 << tab << tab << tab << tab << tab << ".onInterface(\"org.freedesktop.DBus.Properties\")" << endl 
                 << tab << tab << tab << tab << tab << ".withArguments(INTERFACE_NAME, \"" << propertyName << "\")" << endl 
-                << tab << tab << tab << tab << tab << ".uponReplyInvoke([this](const sdbus::Error* error, const " << propertyType << "& res) { this->on" << propertyNameSafe << "Reply(res, error);}); " << endl << tab << "}" << endl << endl;
+                << tab << tab << tab << tab << tab << ".uponReplyInvoke([this](const sdbus::Error* error, const sdbus::Variant& res) { this->on" << propertyNameSafe << "Reply(res.get<" << propertyType << ">(), error);}); " << endl << tab << "}" << endl << endl;
 
                 asyncDeclarationSS << tab << "virtual void on" << propertyNameSafe << "Reply(const " << propertyType << "& res, const sdbus::Error* error) = 0;" << endl;
             } else {
